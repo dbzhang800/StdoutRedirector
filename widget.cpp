@@ -7,7 +7,7 @@
 Widget::Widget(QWidget *parent)
     : QWidget(parent)
 {
-    redirector = new StdoutRedirector(this);
+    redirector = new StdoutRedirector(this, StdoutRedirector::StandardOutput|StdoutRedirector::StandardError);
     QTimer *timer = new QTimer(this);
     timer->setInterval(1000);
     QHBoxLayout *hbox = new QHBoxLayout(this);
@@ -33,7 +33,7 @@ void Widget::onTimeout()
     fprintf(stderr, "From fprintf...");
     std::cout<<"From std::cout..."<<std::endl;
     std::cerr<<"From std::cerr..."<<std::endl;
-    qDebug()<<"From qDebug ...";
+    qDebug()<<"From qDebug ..."<<QDateTime::currentDateTime().toString();
 }
 
 void Widget::readData()

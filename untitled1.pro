@@ -9,7 +9,7 @@ QT       += core gui core-private widgets
 TARGET = untitled1
 TEMPLATE = app
 
-#CONFIG += console
+CONFIG += console
 
 SOURCES += main.cpp\
         widget.cpp \

@@ -37,7 +37,14 @@ class StdoutRedirector : public QObject
 {
     Q_OBJECT
 public:
-    explicit StdoutRedirector(QObject *parent = 0);
+    enum ProcessChannel
+    {
+        StandardOutput = 1,
+        StandardError = 2
+    };
+    Q_DECLARE_FLAGS(ProcessChannels, ProcessChannel)
+
+    explicit StdoutRedirector(QObject *parent = 0, ProcessChannels channels=StandardOutput);
     ~StdoutRedirector();
 
     qint64 bytesAvailable() const;
@@ -47,12 +54,14 @@ signals:
     void readyRead();
 
 private:
+    ProcessChannels m_channels;
 #ifdef Q_OS_WIN
     HANDLE hRead;
     HANDLE hWrite;
     QWindowsPipeReader *pipeReader;
 #endif
-    
 };
+
+Q_DECLARE_OPERATORS_FOR_FLAGS(StdoutRedirector::ProcessChannels)
 
 #endif // STDOUTREDIRECTOR_H
