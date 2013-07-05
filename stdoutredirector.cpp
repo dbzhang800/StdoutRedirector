@@ -24,11 +24,16 @@
 ****************************************************************************/
 #include "stdoutredirector.h"
 #include <QUuid>
+#include <QSocketNotifier>
 
 #ifdef Q_OS_WIN
 #include <private/qwindowspipereader_p.h>
 #include <io.h>
 #include <fcntl.h>
+#else
+#include <private/qringbuffer_p.h>
+#include <unistd.h>
+#include <sys/ioctl.h>
 #endif
 
 #ifdef Q_OS_WIN
@@ -68,6 +73,17 @@ StdoutRedirector::StdoutRedirector(QObject *parent, ProcessChannels channels) :
     pipeReader->setHandle(hRead);
     pipeReader->startAsyncRead();
     connect(pipeReader, SIGNAL(readyRead()), this, SIGNAL(readyRead()));
+#else
+    ::pipe(pipeEnds);
+    if (m_channels & StandardOutput)
+        ::dup2(pipeEnds[1], 1);
+    if (m_channels & StandardError)
+        ::dup2(pipeEnds[1], 2);
+    ::close(pipeEnds[1]);
+
+    buffer = new QRingBuffer();
+    socketNotifier = new QSocketNotifier(pipeEnds[0], QSocketNotifier::Read, this);
+    connect(socketNotifier, SIGNAL(activated(int)), this, SLOT(onSocketActivated()));
 #endif
 }
 
@@ -77,6 +93,8 @@ StdoutRedirector::~StdoutRedirector()
     pipeReader->stop();
     ::DisconnectNamedPipe(hRead);
 //    ::CloseHandle(hWrite);
+#else
+    delete buffer;
 #endif
 }
 
@@ -84,19 +102,38 @@ qint64 StdoutRedirector::bytesAvailable() const
 {
 #ifdef Q_OS_WIN
     return pipeReader->bytesAvailable();
+#else
+    return buffer->size();
 #endif
-    return -1;
 }
 
 QByteArray StdoutRedirector::read(qint64 maxlen)
 {
-    QByteArray result(int(maxlen), Qt::Uninitialized);
 #ifdef Q_OS_WIN
+    QByteArray result(int(maxlen), Qt::Uninitialized);
     qint64 readBytes = pipeReader->read(result.data(), result.size());
     if (readBytes <= 0)
         result.clear();
     else
         result.resize(int(readBytes));
-#endif
     return result;
+#else
+    return buffer->read(maxlen);
+#endif
+}
+
+void StdoutRedirector::onSocketActivated()
+{
+#ifdef Q_OS_UNIX
+    int bytesQueued;
+    if (::ioctl(pipeEnds[0], FIONREAD, &bytesQueued) == -1)
+        return;
+    if (bytesQueued <=0)
+        return;
+    char *writePtr = buffer->reserve(bytesQueued);
+    int bytesRead = ::read(pipeEnds[0], writePtr, bytesQueued);
+    if (bytesRead < bytesQueued)
+        buffer->chop(bytesQueued - bytesRead);
+    Q_EMIT readyRead();
+#endif
 }

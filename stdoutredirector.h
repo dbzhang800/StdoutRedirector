@@ -31,7 +31,11 @@
 #include <qt_windows.h>
 #endif
 
+QT_BEGIN_NAMESPACE
 class QWindowsPipeReader;
+class QRingBuffer;
+class QSocketNotifier;
+QT_END_NAMESPACE
 
 class StdoutRedirector : public QObject
 {
@@ -53,12 +57,19 @@ public:
 signals:
     void readyRead();
 
+private slots:
+    void onSocketActivated();
+
 private:
     ProcessChannels m_channels;
 #ifdef Q_OS_WIN
     HANDLE hRead;
     HANDLE hWrite;
     QWindowsPipeReader *pipeReader;
+#else
+    int pipeEnds[2];
+    QRingBuffer *buffer;
+    QSocketNotifier *socketNotifier;
 #endif
 };
 
